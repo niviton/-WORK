@@ -88,7 +88,10 @@ def capture_loop(st, open_cap, detector):
                     st.jpeg, st.cubes = no_signal_jpeg(w, h), []
                 cap.release()
                 time.sleep(2)
-                cap = open_cap()
+                try:
+                    cap = open_cap()
+                except RuntimeError:
+                    pass  # câmera ainda indisponível; tenta de novo no próximo ciclo
                 black_since = time.time()
             time.sleep(0.01)
             continue

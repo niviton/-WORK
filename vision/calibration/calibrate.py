@@ -27,7 +27,9 @@ def main():
     ap.add_argument("--make-board", action="store_true")
     ap.add_argument("--square", type=float, default=0.030, help="lado do quadrado (m)")
     ap.add_argument("--marker", type=float, default=0.022, help="lado do marcador (m)")
-    ap.add_argument("--camera", type=int, default=0)
+    ap.add_argument("--camera", type=int, default=2)
+    ap.add_argument("--width", type=int, default=1920)
+    ap.add_argument("--height", type=int, default=1080)
     ap.add_argument("--out", default="camera_calib.yaml")
     args = ap.parse_args()
 
@@ -39,7 +41,7 @@ def main():
         return
 
     detector = cv2.aruco.CharucoDetector(board)
-    cap = open_camera(args.camera)
+    cap = open_camera(args.camera, args.width, args.height)
     obj_all, img_all, size = [], [], None
 
     while True:
@@ -52,9 +54,10 @@ def main():
         view = frame.copy()
         if ch_ids is not None:
             cv2.aruco.drawDetectedCornersCharuco(view, ch_corners, ch_ids)
-        cv2.putText(view, f"capturas: {len(obj_all)}  [ESPACO] capturar  [C] calibrar  [Q] sair",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.imshow("calibracao", view)
+        n = 0 if ch_ids is None else len(ch_ids)
+        cv2.putText(view, f"capturas: {len(obj_all)}  cantos: {n}  [ESPACO] capturar  [C] calibrar  [Q] sair",
+                    (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
+        cv2.imshow("calibracao", cv2.resize(view, None, fx=0.5, fy=0.5))  # 1080p não cabe na tela
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord(" ") and ch_ids is not None and len(ch_ids) >= 8:

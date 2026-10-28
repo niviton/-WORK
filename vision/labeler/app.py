@@ -65,12 +65,34 @@ def save_sample(frame, polys_labels, classes):
     return name
 
 
-def capture_loop(st, cap, detector):
+def no_signal_jpeg(w, h):
+    img = np.zeros((h, w, 3), np.uint8)
+    for i, line in enumerate(["SEM SINAL DA CAMERA",
+                              "GoPro: app GoPro Webcam > Start Webcam (reconectando...)"]):
+        cv2.putText(img, line, (40, h // 2 + i * 60), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.4 - i * 0.5, (0, 0, 255), 3 - i)
+    return cv2.imencode(".jpg", img)[1].tobytes()
+
+
+def capture_loop(st, open_cap, detector):
+    cap = open_cap()
+    black_since = None
     while True:
         ok, frame = cap.read()
-        if not ok:
+        # GoPro sem transmitir entrega frames 100% pretos: avisa e tenta reabrir
+        if not ok or frame.max() < 5:
+            black_since = black_since or time.time()
+            if time.time() - black_since > 3:
+                h, w = (frame.shape[:2] if ok else (1080, 1920))
+                with st.lock:
+                    st.jpeg, st.cubes = no_signal_jpeg(w, h), []
+                cap.release()
+                time.sleep(2)
+                cap = open_cap()
+                black_since = time.time()
             time.sleep(0.01)
             continue
+        black_since = None
         cubes = detector.detect(frame)
         view = frame.copy()
         for c in cubes:
@@ -172,10 +194,12 @@ def main():
     K, dist, calib_size = load_calibration(args.calib)
     cap = open_camera(args.camera, args.width, args.height)
     real = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    cap.release()
     K = scale_calibration(K, calib_size, real)
     print(f"Câmera {args.camera}: {real[0]}x{real[1]}")
     st = State()
-    threading.Thread(target=capture_loop, args=(st, cap, CubeDetector(K, dist, args.tag_size)),
+    open_cap = lambda: open_camera(args.camera, args.width, args.height)
+    threading.Thread(target=capture_loop, args=(st, open_cap, CubeDetector(K, dist, args.tag_size)),
                      daemon=True).start()
     logging.getLogger("werkzeug").setLevel(logging.ERROR)  # sem log de cada requisição
     print(f"Abra http://localhost:{args.port}")

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Rotulador de Cubos</title>
+<style>
+  :root { --bg:#111; --panel:#1c1c1c; --fg:#eee; --muted:#999; --ok:#2ecc71; --new:#f39c12; --acc:#3b82f6; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px system-ui, sans-serif;
+         display:flex; gap:16px; padding:16px; height:100vh; }
+  #view { position:relative; flex:1; display:flex; align-items:flex-start; justify-content:center; }
+  #view img, #view canvas { max-width:100%; max-height:calc(100vh - 32px); }
+  #view canvas { position:absolute; top:0; cursor:crosshair; }
+  aside { width:320px; background:var(--panel); border-radius:8px; padding:16px; overflow:auto; }
+  h2 { font-size:15px; margin:16px 0 8px; } h2:first-child { margin-top:0; }
+  input, select, button { width:100%; padding:8px; margin:4px 0; border-radius:6px;
+         border:1px solid #333; background:#222; color:var(--fg); font:inherit; }
+  button { background:var(--acc); border:none; cursor:pointer; font-weight:600; }
+  button:disabled { opacity:.4; cursor:default; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:6px 0;
+         border-bottom:1px solid #2a2a2a; gap:8px; }
+  .row small { color:var(--muted); word-break:break-all; }
+  .x { width:auto; padding:2px 8px; background:#444; }
+  .ok { color:var(--ok); } .new { color:var(--new); }
+  #msg { color:var(--ok); min-height:1.2em; }
+  label.sw { display:flex; gap:8px; align-items:center; } label.sw input { width:auto; }
+</style>
+</head>
+<body>
+<div id="view">
+  <img id="cam" src="/video">
+  <canvas id="draw"></canvas>
+</div>
+<aside>
+  <h2>1. Selecione</h2>
+  <div style="color:var(--muted)">Arraste o mouse sobre o QR/cubo, ou clique num QR laranja.</div>
+  <h2>2. Nome</h2>
+  <input id="name" list="names" placeholder="ex.: cubo_3">
+  <datalist id="names"></datalist>
+  <button id="save" disabled>Salvar exemplo (Enter)</button>
+  <div id="msg"></div>
+
+  <h2>Auto-captura</h2>
+  <label class="sw"><input type="checkbox" id="auto"> Gravar cubos conhecidos (1 foto/s)</label>
+  <div style="color:var(--muted)">Mova o cubo devagar: ângulos, distâncias, iluminação.</div>
+  <div>Exemplos no dataset: <b id="count">0</b></div>
+
+  <h2>Vendo agora</h2>
+  <div id="live"></div>
+
+  <h2>Cubos cadastrados</h2>
+  <div id="reg"></div>
+</aside>
+
+<script>
+const img = document.getElementById('cam'), cv = document.getElementById('draw'), ctx = cv.getContext('2d');
+let S = {width:0, height:0, cubes:[]}, box = null, drag = null;
+
+function fit() { cv.width = img.clientWidth; cv.height = img.clientHeight;
+                 cv.style.left = img.offsetLeft + 'px'; redraw(); }
+img.onload = fit; new ResizeObserver(fit).observe(img);
+
+const scale = () => S.width ? S.width / cv.width : 1;
+const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+
+cv.onmousedown = e => { drag = pos(e); box = null; };
+cv.onmousemove = e => { if (!drag) return; const p = pos(e);
+  box = [Math.min(drag[0],p[0]), Math.min(drag[1],p[1]), Math.max(drag[0],p[0]), Math.max(drag[1],p[1])]; redraw(); };
+cv.onmouseup = e => {
+  if (box && (box[2]-box[0] < 5 || box[3]-box[1] < 5)) box = null;
+  if (!box) {  // clique simples: seleciona o QR sob o mouse
+    const [x, y] = pos(e).map(v => v * scale());
+    const c = S.cubes.find(c => { const xs = c.corners.map(p=>p[0]), ys = c.corners.map(p=>p[1]);
+      return x >= Math.min(...xs) && x <= Math.max(...xs) && y >= Math.min(...ys) && y <= Math.max(...ys); });
+    if (c) { const k = 1/scale(), xs = c.corners.map(p=>p[0]*k), ys = c.corners.map(p=>p[1]*k);
+      box = [Math.min(...xs)-4, Math.min(...ys)-4, Math.max(...xs)+4, Math.max(...ys)+4];
+      if (c.name) document.getElementById('name').value = c.name; }
+  }
+  drag = null; redraw(); document.getElementById('save').disabled = !box;
+  if (box) document.getElementById('name').focus();
+};
+
+function redraw() { ctx.clearRect(0,0,cv.width,cv.height); if (!box) return;
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.setLineDash([6,4]);
+  ctx.strokeRect(box[0], box[1], box[2]-box[0], box[3]-box[1]); }
+
+async function save() {
+  const name = document.getElementById('name').value.trim();
+  if (!box || !name) return;
+  const k = scale(), r = await fetch('/api/label', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({label:name, box: box.map(v => Math.round(v*k))})}).then(r=>r.json());
+  document.getElementById('msg').textContent = r.linked.length
+    ? `✔ QR "${r.linked.join(', ')}" agora é ${name}` : `✔ salvo (nenhum QR lido na seleção)`;
+  box = null; redraw(); document.getElementById('save').disabled = true;
+}
+document.getElementById('save').onclick = save;
+document.getElementById('name').onkeydown = e => { if (e.key === 'Enter') save(); };
+document.getElementById('auto').onchange = e => fetch('/api/auto', {method:'POST',
+  headers:{'Content-Type':'application/json'}, body: JSON.stringify({on:e.target.checked})});
+
+async function forget(qr) { await fetch('/api/forget', {method:'POST',
+  headers:{'Content-Type':'application/json'}, body: JSON.stringify({qr})}); }
+
+const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+async function poll() {
+  try {
+    S = await fetch('/api/state').then(r => r.json());
+    document.getElementById('count').textContent = S.samples;
+    document.getElementById('auto').checked = S.auto;
+    document.getElementById('names').innerHTML = S.classes.map(c => `<option value="${esc(c)}">`).join('');
+    document.getElementById('live').innerHTML = S.cubes.length ? S.cubes.map(c =>
+      `<div class="row"><span class="${c.name?'ok':'new'}">${esc(c.name || 'novo')}</span>
+       <small>${esc(c.qr)}<br>x ${c.xyz_cm[0]} y ${c.xyz_cm[1]} z ${c.xyz_cm[2]} cm</small></div>`).join('')
+      : '<div style="color:var(--muted)">nenhum QR lido</div>';
+    document.getElementById('reg').innerHTML = Object.entries(S.registry)
+      .filter(([q]) => !q.startsWith('__manual__')).map(([q, n]) =>
+      `<div class="row"><b>${esc(n)}</b><small>${esc(q)}</small>
+       <button class="x" data-qr="${esc(q)}">×</button></div>`).join('') || '<div style="color:var(--muted)">nenhum</div>';
+    document.querySelectorAll('#reg .x').forEach(b => b.onclick = () => forget(b.dataset.qr));
+  } catch (e) {}
+  setTimeout(poll, 300);
+}
+poll();
+</script>
+</body>
+</html>

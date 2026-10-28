@@ -3,3 +3,4 @@ __pycache__/
 *.png
 datasets/
 models/
+cubes_registry.yaml

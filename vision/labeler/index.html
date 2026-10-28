@@ -28,7 +28,7 @@
 </head>
 <body>
 <div id="view">
-  <img id="cam" src="/video">
+  <img id="cam">
   <canvas id="draw"></canvas>
 </div>
 <aside>
@@ -58,7 +58,23 @@ let S = {width:0, height:0, cubes:[]}, box = null, drag = null;
 
 function fit() { cv.width = img.clientWidth; cv.height = img.clientHeight;
                  cv.style.left = img.offsetLeft + 'px'; redraw(); }
-img.onload = fit; new ResizeObserver(fit).observe(img);
+new ResizeObserver(fit).observe(img);
+
+// Busca frame a frame; se falhar, tenta de novo sozinho (não fica tela preta)
+let lastUrl = null;
+async function frameLoop() {
+  try {
+    const r = await fetch('/frame.jpg', {cache: 'no-store'});
+    if (r.ok) {
+      const url = URL.createObjectURL(await r.blob());
+      img.src = url;
+      if (lastUrl) URL.revokeObjectURL(lastUrl);
+      lastUrl = url;
+    }
+  } catch (e) { await new Promise(r => setTimeout(r, 500)); }
+  setTimeout(frameLoop, 33);
+}
+frameLoop();
 
 const scale = () => S.width ? S.width / cv.width : 1;
 const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };

@@ -9,6 +9,7 @@
 - "Auto-captura" grava sozinha os cubos já conhecidos (gera dataset rápido).
 """
 import argparse
+import logging
 import threading
 import time
 from pathlib import Path
@@ -92,16 +93,14 @@ def create_app(st):
     def index():
         return send_file(Path(__file__).with_name("index.html"))
 
-    @app.get("/video")
-    def video():
-        def gen():
-            while True:
-                with st.lock:
-                    jpg = st.jpeg
-                if jpg:
-                    yield b"--f\r\nContent-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n"
-                time.sleep(0.03)
-        return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=f")
+    @app.get("/frame.jpg")
+    def frame():
+        # Um frame por requisição: mais robusto que MJPEG (sem conexão presa no navegador)
+        with st.lock:
+            jpg = st.jpeg
+        if not jpg:
+            return Response(status=503)
+        return Response(jpg, mimetype="image/jpeg", headers={"Cache-Control": "no-store"})
 
     @app.get("/api/state")
     def state():
@@ -168,6 +167,7 @@ def main():
     st = State()
     threading.Thread(target=capture_loop, args=(st, cap, CubeDetector(K, dist, args.qr_size)),
                      daemon=True).start()
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)  # sem log de cada requisição
     print(f"Abra http://localhost:{args.port}")
     create_app(st).run(host="0.0.0.0", port=args.port, threaded=True)
 

@@ -4,9 +4,10 @@ import numpy as np
 import yaml
 
 
-def open_camera(index=0, width=1280, height=720):
+def open_camera(index=0, width=1920, height=1080):
     # CAP_DSHOW abre a GoPro Webcam mais rápido no Windows
     cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))  # 1080p sem perder fps
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # reduz latência
@@ -25,6 +26,14 @@ def save_calibration(path, K, dist, size, rms):
     }
     with open(path, "w") as f:
         yaml.safe_dump(data, f)
+
+
+def scale_calibration(K, calib_size, frame_size):
+    """Ajusta K quando a câmera roda em resolução diferente da calibrada (mesmo aspecto)."""
+    s = frame_size[0] / calib_size[0]
+    K = K.copy()
+    K[:2] *= s
+    return K
 
 
 def load_calibration(path):

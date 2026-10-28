@@ -19,7 +19,7 @@ import numpy as np
 import yaml
 from flask import Flask, Response, jsonify, request, send_file
 
-from vision.common.camera import load_calibration, open_camera
+from vision.common.camera import load_calibration, open_camera, scale_calibration
 from vision.cubes.detector import CubeDetector
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -165,10 +165,15 @@ def main():
     ap.add_argument("--calib", default="camera_calib.yaml")
     ap.add_argument("--tag-size", type=float, default=0.03, help="lado do quadrado preto (m)")
     ap.add_argument("--port", type=int, default=5000)
+    ap.add_argument("--width", type=int, default=1920)
+    ap.add_argument("--height", type=int, default=1080)
     args = ap.parse_args()
 
-    K, dist, (w, h) = load_calibration(args.calib)
-    cap = open_camera(args.camera, w, h)
+    K, dist, calib_size = load_calibration(args.calib)
+    cap = open_camera(args.camera, args.width, args.height)
+    real = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    K = scale_calibration(K, calib_size, real)
+    print(f"Câmera {args.camera}: {real[0]}x{real[1]}")
     st = State()
     threading.Thread(target=capture_loop, args=(st, cap, CubeDetector(K, dist, args.tag_size)),
                      daemon=True).start()

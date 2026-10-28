@@ -188,7 +188,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--camera", type=int, default=0)
     ap.add_argument("--calib", default="camera_calib.yaml")
-    ap.add_argument("--tag-size", type=float, default=0.03, help="lado do quadrado preto (m)")
+    ap.add_argument("--tag-size", type=float, default=0.032, help="lado do quadrado preto (m)")
     ap.add_argument("--port", type=int, default=5000)
     ap.add_argument("--width", type=int, default=1920)
     ap.add_argument("--height", type=int, default=1080)

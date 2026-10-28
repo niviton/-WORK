@@ -38,8 +38,13 @@ class State:
         self.registry = yaml.safe_load(REGISTRY.read_text()) if REGISTRY.exists() else {}
         self.registry = self.registry or {}
 
+    def name_of(self, tag_id):
+        # O ID do AprilTag já é o número do cubo; o cadastro só renomeia se quiser
+        return self.registry.get(tag_id, f"cubo_{tag_id}")
+
     def classes(self):
-        return sorted(set(self.registry.values()))
+        seen = {self.name_of(c.id) for c in self.cubes}
+        return sorted(set(self.registry.values()) | seen)
 
 
 def save_sample(frame, polys_labels, classes):
@@ -69,18 +74,18 @@ def capture_loop(st, cap, detector):
         cubes = detector.detect(frame)
         view = frame.copy()
         for c in cubes:
-            name = st.registry.get(c.id)
-            color = (0, 255, 0) if name else (0, 165, 255)  # verde = conhecido, laranja = novo
+            name = st.name_of(c.id)
+            color = (0, 255, 0)
             cv2.polylines(view, [c.corners.astype(int)], True, color, 2)
             cv2.drawFrameAxes(view, detector.K, detector.dist, c.rvec, c.tvec, 0.03)
-            txt = f"{name or '?'} [{c.id}] z={c.tvec[2] * 100:.1f}cm"
+            txt = f"{name} [tag {c.id}] z={c.tvec[2] * 100:.1f}cm"
             org = tuple(c.corners[0].astype(int) - [0, 10])
             cv2.putText(view, txt, org, cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
         with st.lock:
             st.frame, st.cubes = frame, cubes
             st.jpeg = cv2.imencode(".jpg", view, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
-            known = [(c.corners, st.registry[c.id]) for c in cubes if c.id in st.registry]
+            known = [(c.corners, st.name_of(c.id)) for c in cubes]
             if st.auto and known and time.time() - st.last_auto > 1.0:
                 st.last_auto = time.time()
                 save_sample(frame, known, st.classes())
@@ -110,7 +115,7 @@ def create_app(st):
                 width=w, height=h, auto=st.auto, registry=st.registry,
                 classes=st.classes(), samples=len(list((DATASET / "images").glob("*.jpg")))
                 if (DATASET / "images").exists() else 0,
-                cubes=[{"qr": c.id, "name": st.registry.get(c.id),
+                cubes=[{"qr": c.id, "name": st.name_of(c.id),
                         "corners": c.corners.tolist(),
                         "xyz_cm": (c.tvec * 100).round(1).tolist()} for c in st.cubes])
 
@@ -158,14 +163,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--camera", type=int, default=0)
     ap.add_argument("--calib", default="camera_calib.yaml")
-    ap.add_argument("--qr-size", type=float, default=0.04)
+    ap.add_argument("--tag-size", type=float, default=0.03, help="lado do quadrado preto (m)")
     ap.add_argument("--port", type=int, default=5000)
     args = ap.parse_args()
 
     K, dist, (w, h) = load_calibration(args.calib)
     cap = open_camera(args.camera, w, h)
     st = State()
-    threading.Thread(target=capture_loop, args=(st, cap, CubeDetector(K, dist, args.qr_size)),
+    threading.Thread(target=capture_loop, args=(st, cap, CubeDetector(K, dist, args.tag_size)),
                      daemon=True).start()
     logging.getLogger("werkzeug").setLevel(logging.ERROR)  # sem log de cada requisição
     print(f"Abra http://localhost:{args.port}")

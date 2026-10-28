@@ -1,4 +1,4 @@
-"""Detecção dos cubos pelo QR Code: ID, contorno e pose 3D.
+"""Detecção dos cubos pelo AprilTag (família 36h11): ID, contorno e pose 3D.
 
 Biblioteca pura (sem janela/câmera) para ser reutilizada depois no nó ROS 2.
 """
@@ -10,7 +10,7 @@ import numpy as np
 
 @dataclass
 class Cube:
-    id: str                 # texto decodificado do QR
+    id: str                 # ID do AprilTag (ex.: "3")
     corners: np.ndarray     # 4x2 pixels: sup-esq, sup-dir, inf-dir, inf-esq
     rvec: np.ndarray        # rotação (Rodrigues) no frame da câmera
     tvec: np.ndarray        # posição (m) do centro do QR no frame da câmera
@@ -27,33 +27,31 @@ class Cube:
 
 
 class CubeDetector:
-    def __init__(self, K, dist, qr_size_m):
+    def __init__(self, K, dist, tag_size_m):
+        """tag_size_m: lado do quadrado PRETO do tag, em metros."""
         self.K, self.dist = K, dist
-        s = qr_size_m / 2
+        s = tag_size_m / 2
         # Mesma ordem dos cantos devolvidos pelo OpenCV; exigida pelo IPPE_SQUARE
         self.obj_pts = np.array([[-s, s, 0], [s, s, 0], [s, -s, 0], [-s, -s, 0]], np.float32)
-        self.qr = cv2.QRCodeDetector()
+        params = cv2.aruco.DetectorParameters()
+        # SUBPIX: cantos precisos (o modo APRILTAG falhou nos testes com o cubo real)
+        params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+        self.aruco = cv2.aruco.ArucoDetector(
+            cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11), params)
 
     def detect(self, frame):
-        ok, texts, points, _ = self.qr.detectAndDecodeMulti(frame)
-        if not ok or points is None:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        corners, ids, _ = self.aruco.detectMarkers(gray)
+        if ids is None:
             return []
         cubes = []
-        for text, pts in zip(texts, points):
-            if not text:  # achou o QR mas não leu (longe/borrado)
-                continue
-            pts = self._refine(frame, pts.astype(np.float32))
+        for pts, tag_id in zip(corners, ids.ravel()):
+            pts = pts.reshape(4, 2).astype(np.float32)
             found, rvec, tvec = cv2.solvePnP(self.obj_pts, pts, self.K, self.dist,
                                              flags=cv2.SOLVEPNP_IPPE_SQUARE)
             if found:
-                cubes.append(Cube(text, pts, rvec.ravel(), tvec.ravel()))
+                cubes.append(Cube(str(int(tag_id)), pts, rvec.ravel(), tvec.ravel()))
         return cubes
-
-    @staticmethod
-    def _refine(frame, pts):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.01)
-        return cv2.cornerSubPix(gray, pts.reshape(-1, 1, 2), (5, 5), (-1, -1), crit).reshape(4, 2)
 
     def draw(self, frame, cubes, axis_len=0.03):
         for c in cubes:

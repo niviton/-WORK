@@ -1,8 +1,8 @@
 """Demo ao vivo com a GoPro.
 
-  python -m vision.cubes.run_cubes --qr-size 0.04
+  python -m vision.cubes.run_cubes --tag-size 0.03
 
---qr-size = lado do QR Code impresso no cubo, em metros (só a parte preta).
+--tag-size = lado do quadrado PRETO do AprilTag no cubo, em metros.
 """
 import argparse
 
@@ -14,14 +14,14 @@ from vision.cubes.detector import CubeDetector
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--qr-size", type=float, required=True)
+    ap.add_argument("--tag-size", type=float, required=True)
     ap.add_argument("--calib", default="camera_calib.yaml")
     ap.add_argument("--camera", type=int, default=0)
     args = ap.parse_args()
 
     K, dist, (w, h) = load_calibration(args.calib)
     cap = open_camera(args.camera, w, h)  # mesma resolução da calibração
-    detector = CubeDetector(K, dist, args.qr_size)
+    detector = CubeDetector(K, dist, args.tag_size)
 
     while True:
         ok, frame = cap.read()

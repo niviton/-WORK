@@ -52,8 +52,14 @@ def main():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         ch_corners, ch_ids, _, _ = detector.detectBoard(gray)
         view = frame.copy()
-        if ch_ids is not None:
-            cv2.aruco.drawDetectedCornersCharuco(view, ch_corners, ch_ids)
+        # Desenho manual: drawDetectedCornersCharuco quebra no OpenCV 5
+        valid = (ch_ids is not None and ch_corners is not None
+                 and len(ch_corners.reshape(-1, 2)) == len(ch_ids.ravel()))
+        if valid:
+            for x, y in ch_corners.reshape(-1, 2).astype(int):
+                cv2.circle(view, (x, y), 8, (0, 0, 255), -1)
+        else:
+            ch_ids = None
         n = 0 if ch_ids is None else len(ch_ids)
         cv2.putText(view, f"capturas: {len(obj_all)}  cantos: {n}  [ESPACO] capturar  [C] calibrar  [Q] sair",
                     (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)

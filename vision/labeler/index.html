@@ -46,6 +46,7 @@
   <div>Exemplos no dataset: <b id="count">0</b></div>
 
   <h2>Vendo agora</h2>
+  <div id="tape"></div>
   <div id="live"></div>
 
   <h2>Cubos cadastrados</h2>
@@ -122,6 +123,10 @@ async function poll() {
   try {
     S = await fetch('/api/state').then(r => r.json());
     document.getElementById('count').textContent = S.samples;
+    document.getElementById('tape').innerHTML = S.tape
+      ? `<div class="row"><span style="color:#e040fb">fita zebrada</span>
+         <small>${S.tape.distance_cm} cm do robô<br>ponto mais perto: x ${S.tape.nearest_cm[0]} y ${S.tape.nearest_cm[1]}</small></div>`
+      : '';
     document.getElementById('auto').checked = S.auto;
     document.getElementById('names').innerHTML = S.classes.map(c => `<option value="${esc(c)}">`).join('');
     document.getElementById('live').innerHTML = S.cubes.length ? S.cubes.map(c =>

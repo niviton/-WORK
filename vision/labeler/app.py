@@ -22,6 +22,7 @@ from flask import Flask, Response, jsonify, request, send_file
 from vision.common.camera import load_calibration, open_camera, scale_calibration
 from vision.cubes.detector import CubeDetector
 from vision.cubes.grasp import grasp_from_cube, load_T_base_cam
+from vision.tape.detector import TapeDetector
 
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "cubes_registry.yaml"
@@ -34,6 +35,7 @@ class State:
         self.frame = None        # frame cru (para salvar)
         self.jpeg = None         # frame com desenho (para o navegador)
         self.cubes = []
+        self.tape = None
         self.auto = False
         self.last_auto = 0.0
         self.registry = yaml.safe_load(REGISTRY.read_text()) if REGISTRY.exists() else {}
@@ -81,7 +83,13 @@ def no_signal_jpeg(w, h):
     return cv2.imencode(".jpg", img)[1].tobytes()
 
 
-def capture_loop(st, open_cap, detector):
+def cube_body(corners, scale=1.6):
+    """Polígono que cobre o cubo inteiro (tag 3,2 cm em face de 4,2 cm), para a fita ignorar."""
+    c = corners.mean(axis=0)
+    return c + (corners - c) * scale
+
+
+def capture_loop(st, open_cap, detector, tape_detector):
     cap = open_cap()
     black_since = None
     while True:
@@ -104,7 +112,8 @@ def capture_loop(st, open_cap, detector):
             continue
         black_since = None
         cubes = detector.detect(frame)
-        view = frame.copy()
+        tape = tape_detector.detect(frame, [cube_body(c.corners) for c in cubes])
+        view = tape_detector.draw(frame.copy(), tape)
         for c in cubes:
             name = st.name_of(c.id)
             color = (0, 255, 0)
@@ -121,7 +130,7 @@ def capture_loop(st, open_cap, detector):
             cv2.putText(view, txt, org, cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
         with st.lock:
-            st.frame, st.cubes = frame, cubes
+            st.frame, st.cubes, st.tape = frame, cubes, tape
             st.jpeg = cv2.imencode(".jpg", view, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
             known = [(c.corners, st.name_of(c.id)) for c in cubes]
             if st.auto and known and time.time() - st.last_auto > 1.0:
@@ -151,6 +160,10 @@ def create_app(st):
             h, w = st.frame.shape[:2] if st.frame is not None else (0, 0)
             return jsonify(
                 width=w, height=h, auto=st.auto, registry=st.registry,
+                tape=None if st.tape is None or st.tape.distance is None else {
+                    "distance_cm": round(st.tape.distance * 100, 1),
+                    "nearest_cm": (st.tape.nearest * 100).round(1).tolist(),
+                    "points": len(st.tape.points)},
                 classes=st.classes(), samples=len(list((DATASET / "images").glob("*.jpg")))
                 if (DATASET / "images").exists() else 0,
                 cubes=[{"qr": c.id, "name": st.name_of(c.id),
@@ -209,6 +222,8 @@ def main():
     ap.add_argument("--port", type=int, default=5000)
     ap.add_argument("--width", type=int, default=1920)
     ap.add_argument("--height", type=int, default=1080)
+    ap.add_argument("--floor-z", type=float, default=0.0,
+                    help="altura do chão/mesa onde a fita está, no frame do robô (m)")
     args = ap.parse_args()
 
     K, dist, calib_size = load_calibration(args.calib)
@@ -219,7 +234,9 @@ def main():
     print(f"Câmera {args.camera}: {real[0]}x{real[1]}")
     st = State()
     open_cap = lambda: open_camera(args.camera, args.width, args.height)
-    threading.Thread(target=capture_loop, args=(st, open_cap, CubeDetector(K, dist, args.tag_size)),
+    tape = TapeDetector(K, dist, st.T_base_cam, floor_z=args.floor_z)
+    threading.Thread(target=capture_loop,
+                     args=(st, open_cap, CubeDetector(K, dist, args.tag_size), tape),
                      daemon=True).start()
     logging.getLogger("werkzeug").setLevel(logging.ERROR)  # sem log de cada requisição
     print(f"Abra http://localhost:{args.port}")

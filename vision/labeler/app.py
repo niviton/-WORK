@@ -216,7 +216,7 @@ def create_app(st):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--camera", type=int, default=2)
+    ap.add_argument("--camera", default="srv", help="srv (servidor da câmera) ou índice do dispositivo")
     ap.add_argument("--calib", default="camera_calib_gopro.yaml")
     ap.add_argument("--tag-size", type=float, default=0.032, help="lado do quadrado preto (m)")
     ap.add_argument("--port", type=int, default=5000)

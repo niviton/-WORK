@@ -27,7 +27,7 @@ def main():
     ap.add_argument("--make-board", action="store_true")
     ap.add_argument("--square", type=float, default=0.030, help="lado do quadrado (m)")
     ap.add_argument("--marker", type=float, default=0.022, help="lado do marcador (m)")
-    ap.add_argument("--camera", type=int, default=2)
+    ap.add_argument("--camera", default="srv", help="srv (servidor da câmera) ou índice do dispositivo")
     ap.add_argument("--width", type=int, default=1920)
     ap.add_argument("--height", type=int, default=1080)
     ap.add_argument("--out", default="camera_calib.yaml")

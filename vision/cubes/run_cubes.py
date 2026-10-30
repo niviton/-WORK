@@ -16,7 +16,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag-size", type=float, required=True)
     ap.add_argument("--calib", default="camera_calib.yaml")
-    ap.add_argument("--camera", type=int, default=0)
+    ap.add_argument("--camera", default="srv", help="srv (servidor da câmera) ou índice do dispositivo")
     args = ap.parse_args()
 
     K, dist, (w, h) = load_calibration(args.calib)

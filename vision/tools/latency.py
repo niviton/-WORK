@@ -36,7 +36,7 @@ class Grabber:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--camera", type=int, default=2)
+    ap.add_argument("--camera", default="srv", help="srv (servidor da câmera) ou índice do dispositivo")
     ap.add_argument("--trials", type=int, default=15)
     args = ap.parse_args()
 

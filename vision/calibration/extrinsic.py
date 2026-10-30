@@ -24,7 +24,7 @@ def main():
     ap.add_argument("--x", type=float, required=True)
     ap.add_argument("--y", type=float, required=True)
     ap.add_argument("--z", type=float, default=0.0, help="altura da superfície (m)")
-    ap.add_argument("--camera", type=int, default=2)
+    ap.add_argument("--camera", default="srv", help="srv (servidor da câmera) ou índice do dispositivo")
     ap.add_argument("--calib", default="camera_calib_gopro.yaml")
     ap.add_argument("--tag-size", type=float, default=0.032)
     ap.add_argument("--out", default="robot_config.yaml")

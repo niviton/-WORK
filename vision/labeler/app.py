@@ -1,12 +1,12 @@
-"""Rotulador web ao vivo.
+﻿"""Rotulador web ao vivo.
 
   python -m vision.labeler.app --camera 0 --calib camera_calib_aprox.yaml
   abrir http://localhost:5000
 
 - Arraste o mouse sobre o QR/cubo, escolha o nome (ex.: cubo_3) e salve.
-- O QR dentro da seleção passa a ser reconhecido com esse nome (cubes_registry.yaml).
-- Cada salvamento grava imagem + anotação YOLO-seg em datasets/cubes/ para treinar depois.
-- "Auto-captura" grava sozinha os cubos já conhecidos (gera dataset rápido).
+- O QR dentro da seleÃ§Ã£o passa a ser reconhecido com esse nome (cubes_registry.yaml).
+- Cada salvamento grava imagem + anotaÃ§Ã£o YOLO-seg em datasets/cubes/ para treinar depois.
+- "Auto-captura" grava sozinha os cubos jÃ¡ conhecidos (gera dataset rÃ¡pido).
 """
 import argparse
 import logging
@@ -39,7 +39,7 @@ class State:
         self.registry = self.registry or {}
 
     def name_of(self, tag_id):
-        # O ID do AprilTag já é o número do cubo; o cadastro só renomeia se quiser
+        # O ID do AprilTag jÃ¡ Ã© o nÃºmero do cubo; o cadastro sÃ³ renomeia se quiser
         return self.registry.get(tag_id, f"cubo_{tag_id}")
 
     def classes(self):
@@ -48,7 +48,7 @@ class State:
 
 
 def save_sample(frame, polys_labels, classes):
-    """Grava imagem + rótulo no formato YOLO-seg (classe x1 y1 x2 y2 ... normalizado)."""
+    """Grava imagem + rÃ³tulo no formato YOLO-seg (classe x1 y1 x2 y2 ... normalizado)."""
     (DATASET / "images").mkdir(parents=True, exist_ok=True)
     (DATASET / "labels").mkdir(parents=True, exist_ok=True)
     name = time.strftime("%Y%m%d_%H%M%S_") + f"{int(time.time() * 1000) % 1000:03d}"
@@ -91,7 +91,7 @@ def capture_loop(st, open_cap, detector):
                 try:
                     cap = open_cap()
                 except RuntimeError:
-                    pass  # câmera ainda indisponível; tenta de novo no próximo ciclo
+                    pass  # cÃ¢mera ainda indisponÃ­vel; tenta de novo no prÃ³ximo ciclo
                 black_since = time.time()
             time.sleep(0.01)
             continue
@@ -125,7 +125,7 @@ def create_app(st):
 
     @app.get("/frame.jpg")
     def frame():
-        # Um frame por requisição: mais robusto que MJPEG (sem conexão presa no navegador)
+        # Um frame por requisiÃ§Ã£o: mais robusto que MJPEG (sem conexÃ£o presa no navegador)
         with st.lock:
             jpg = st.jpeg
         if not jpg:
@@ -152,7 +152,7 @@ def create_app(st):
         x1, y1, x2, y2 = data["box"]
         with st.lock:
             frame = st.frame.copy()
-            # QR(s) cujo centro cai dentro da seleção recebem o nome
+            # QR(s) cujo centro cai dentro da seleÃ§Ã£o recebem o nome
             linked = []
             for c in st.cubes:
                 cx, cy = c.corners.mean(axis=0)
@@ -162,7 +162,7 @@ def create_app(st):
             if name not in st.registry.values():
                 st.registry[f"__manual__{name}"] = name  # classe sem QR lido ainda
             REGISTRY.write_text(yaml.safe_dump(st.registry, allow_unicode=True))
-            # Se achou o QR, usa os cantos exatos; senão, o retângulo desenhado
+            # Se achou o QR, usa os cantos exatos; senÃ£o, o retÃ¢ngulo desenhado
             polys = [(c.corners, name) for c in linked] or \
                     [([[x1, y1], [x2, y1], [x2, y2], [x1, y2]], name)]
             sample = save_sample(frame, polys, st.classes())
@@ -187,7 +187,7 @@ def create_app(st):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--camera", type=int, default=0)
-    ap.add_argument("--calib", default="camera_calib.yaml")
+    ap.add_argument("--calib", default="camera_calib_gopro.yaml")
     ap.add_argument("--tag-size", type=float, default=0.032, help="lado do quadrado preto (m)")
     ap.add_argument("--port", type=int, default=5000)
     ap.add_argument("--width", type=int, default=1920)
@@ -199,12 +199,12 @@ def main():
     real = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
     cap.release()
     K = scale_calibration(K, calib_size, real)
-    print(f"Câmera {args.camera}: {real[0]}x{real[1]}")
+    print(f"CÃ¢mera {args.camera}: {real[0]}x{real[1]}")
     st = State()
     open_cap = lambda: open_camera(args.camera, args.width, args.height)
     threading.Thread(target=capture_loop, args=(st, open_cap, CubeDetector(K, dist, args.tag_size)),
                      daemon=True).start()
-    logging.getLogger("werkzeug").setLevel(logging.ERROR)  # sem log de cada requisição
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)  # sem log de cada requisiÃ§Ã£o
     print(f"Abra http://localhost:{args.port}")
     create_app(st).run(host="0.0.0.0", port=args.port, threaded=True)
 

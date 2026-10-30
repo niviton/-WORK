@@ -126,7 +126,9 @@ async function poll() {
     document.getElementById('names').innerHTML = S.classes.map(c => `<option value="${esc(c)}">`).join('');
     document.getElementById('live').innerHTML = S.cubes.length ? S.cubes.map(c =>
       `<div class="row"><span class="${c.name?'ok':'new'}">${esc(c.name || 'novo')}</span>
-       <small>${esc(c.qr)}<br>x ${c.xyz_cm[0]} y ${c.xyz_cm[1]} z ${c.xyz_cm[2]} cm</small></div>`).join('')
+       <small>tag ${esc(c.qr)}<br>${c.robot
+         ? `robô: x ${c.robot.xyz_cm[0]} y ${c.robot.xyz_cm[1]} z ${c.robot.xyz_cm[2]} cm · giro ${c.robot.yaw_deg}°`
+         : `câmera: x ${c.xyz_cm[0]} y ${c.xyz_cm[1]} z ${c.xyz_cm[2]} cm`}</small></div>`).join('')
       : '<div style="color:var(--muted)">nenhum QR lido</div>';
     document.getElementById('reg').innerHTML = Object.entries(S.registry)
       .filter(([q]) => !q.startsWith('__manual__')).map(([q, n]) =>

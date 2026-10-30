@@ -89,7 +89,7 @@ def capture_loop(st, open_cap, detector):
         # GoPro sem transmitir entrega frames 100% pretos: avisa e tenta reabrir
         if not ok or frame.max() < 5:
             black_since = black_since or time.time()
-            if time.time() - black_since > 3:
+            if time.time() - black_since > 20:  # GoPro leva ~8 s para iniciar; não reabrir antes
                 h, w = (frame.shape[:2] if ok else (1080, 1920))
                 with st.lock:
                     st.jpeg, st.cubes = no_signal_jpeg(w, h), []

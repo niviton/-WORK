@@ -28,6 +28,8 @@ def main():
     ap.add_argument("--calib", default="camera_calib_gopro.yaml")
     ap.add_argument("--tag-size", type=float, default=0.032)
     ap.add_argument("--out", default="robot_config.yaml")
+    ap.add_argument("--camera-centered", action="store_true",
+                    help="câmera está em y=0 (atrás do cubo); ignora a orientação do tag")
     args = ap.parse_args()
 
     K, dist, calib_size = load_calibration(args.calib)
@@ -55,6 +57,17 @@ def main():
     T_base_tag[:3, :3] = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]], float)
     T_base_tag[:3, 3] = [args.x, args.y, args.z + CUBE_SIZE]
     T_base_cam = T_base_tag @ np.linalg.inv(T_cam_tag)
+
+    if args.camera_centered:
+        # Câmera sabidamente em y=0 atrás do cubo: gira em torno do eixo vertical do cubo
+        # até a câmera ficar exatamente atrás dele (dispensa a orientação do tag)
+        rel = T_base_cam[:3, 3] - T_base_tag[:3, 3]
+        ang = np.pi - np.arctan2(rel[1], rel[0])
+        Rz = np.eye(4)
+        Rz[:2, :2] = [[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]]
+        to_tag, back = np.eye(4), np.eye(4)
+        to_tag[:3, 3], back[:3, 3] = -T_base_tag[:3, 3], T_base_tag[:3, 3]
+        T_base_cam = back @ Rz @ to_tag @ T_base_cam
 
     with open(args.out, "w") as f:
         yaml.safe_dump({"T_base_cam": T_base_cam.round(6).tolist(),

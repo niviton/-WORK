@@ -48,6 +48,14 @@ def main():
         ok, frame = cap.read()
         if not ok:
             continue
+        if frame.max() < 5:  # GoPro leva ~8 s para começar a transmitir
+            msg = frame.copy()
+            cv2.putText(msg, "Aguardando a GoPro... (se passar de 30 s: Stop/Start no app GoPro Webcam)",
+                        (40, 540), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+            cv2.imshow("calibracao", cv2.resize(msg, None, fx=0.5, fy=0.5))
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+            continue
         size = (frame.shape[1], frame.shape[0])
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         ch_corners, ch_ids, _, _ = detector.detectBoard(gray)

@@ -37,9 +37,10 @@ class CubeDetector:
         # SUBPIX: cantos precisos (o modo APRILTAG falhou nos testes com o cubo real)
         params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
         params.cornerRefinementWinSize = 5
-        params.minMarkerPerimeterRate = 0.01      # aceita tags pequenos/distantes
-        params.adaptiveThreshWinSizeMax = 53      # mais robusto a sombra/reflexo
-        params.adaptiveThreshWinSizeStep = 6
+        params.minMarkerPerimeterRate = 0.03      # abaixo disso (~14 px de lado em 1080p) não decodifica
+        params.adaptiveThreshWinSizeMin = 5       # 3 escalas: bem mais rápido que varrer 9
+        params.adaptiveThreshWinSizeMax = 35
+        params.adaptiveThreshWinSizeStep = 15
         self.aruco = cv2.aruco.ArucoDetector(
             cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11), params)
         self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))

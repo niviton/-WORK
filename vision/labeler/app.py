@@ -92,6 +92,7 @@ def cube_body(corners, scale=1.6):
 def capture_loop(st, open_cap, detector, tape_detector):
     cap = open_cap()
     black_since = None
+    tape, last_tape = None, 0.0
     while True:
         ok, frame = cap.read()
         # GoPro sem transmitir entrega frames 100% pretos: avisa e tenta reabrir
@@ -112,7 +113,10 @@ def capture_loop(st, open_cap, detector, tape_detector):
             continue
         black_since = None
         cubes = detector.detect(frame)
-        tape = tape_detector.detect(frame, [cube_body(c.corners) for c in cubes])
+        # Fita a ~5 Hz basta para navegar; entre uma análise e outra reaproveita o resultado
+        if tape is None or time.time() - last_tape > 0.2:
+            tape = tape_detector.detect(frame, [cube_body(c.corners) for c in cubes])
+            last_tape = time.time()
         view = tape_detector.draw(frame.copy(), tape)
         for c in cubes:
             name = st.name_of(c.id)

@@ -57,7 +57,9 @@ class TapeDetector:
         touching = np.unique(wl[(white > 0) & (cv2.dilate(red, k) > 0)])
         max_white = 0.02 * white.size
         keep = [t for t in touching if t and ws[t, cv2.CC_STAT_AREA] < max_white]
-        white_near = np.isin(wl, keep).astype(np.uint8) * 255
+        lut = np.zeros(len(ws), np.uint8)  # tabela por rótulo: bem mais rápido que np.isin
+        lut[keep] = 255
+        white_near = lut[wl]
         tape = cv2.morphologyEx(red | white_near, cv2.MORPH_CLOSE, k, iterations=2)
         for poly in exclude_polys:           # ex.: área dos cubos detectados pelo tag
             cv2.fillPoly(tape, [np.asarray(poly, np.int32)], 0)

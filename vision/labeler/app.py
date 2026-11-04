@@ -30,7 +30,7 @@ DATASET = ROOT / "datasets" / "cubes"
 
 
 class State:
-    def __init__(self):
+    def __init__(self, robot_config):
         self.lock = threading.Lock()
         self.frame = None        # frame cru (para salvar)
         self.jpeg = None         # frame com desenho (para o navegador)
@@ -41,8 +41,8 @@ class State:
         self.registry = yaml.safe_load(REGISTRY.read_text()) if REGISTRY.exists() else {}
         self.registry = self.registry or {}
         # Pose da câmera no robô (sem ela, mostra só coordenadas da câmera)
-        robot_cfg = ROOT / "robot_config.yaml"
-        self.T_base_cam = load_T_base_cam(robot_cfg) if robot_cfg.exists() else None
+        robot_cfg = ROOT / robot_config if robot_config else None
+        self.T_base_cam = load_T_base_cam(robot_cfg) if robot_cfg and robot_cfg.exists() else None
 
     def grasp(self, cube):
         return grasp_from_cube(cube, self.T_base_cam) if self.T_base_cam is not None else None
@@ -117,7 +117,8 @@ def capture_loop(st, open_cap, detector, tape_detector):
         for c in cubes:
             name = st.name_of(c.id)
             color = (0, 255, 0)
-            cv2.polylines(view, [c.corners.astype(int)], True, color, 2)
+            ui = max(1, frame.shape[1] / 1920)  # mantém desenho legível em 4K
+            cv2.polylines(view, [c.corners.astype(int)], True, color, round(2 * ui))
             cv2.drawFrameAxes(view, detector.K, detector.dist, c.rvec, c.tvec, 0.03)
             g = st.grasp(c)
             if g is not None:  # coordenadas no frame do robô (alvo da garra)
@@ -126,12 +127,17 @@ def capture_loop(st, open_cap, detector, tape_detector):
             else:
                 txt = f"{name}  dist={c.distance * 100:.1f}cm (sem robot_config)"
             org = tuple(c.corners[0].astype(int) - [0, 12])
-            cv2.putText(view, txt, org, cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 5)
-            cv2.putText(view, txt, org, cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+            cv2.putText(view, txt, org, cv2.FONT_HERSHEY_SIMPLEX, 0.9 * ui, (0, 0, 0), round(5 * ui))
+            cv2.putText(view, txt, org, cv2.FONT_HERSHEY_SIMPLEX, 0.9 * ui, color, round(2 * ui))
 
+        # O navegador recebe no máximo 1080p; a detecção e o dataset usam a resolução cheia
+        if view.shape[1] > 1920:
+            view = cv2.resize(view, (1920, 1920 * view.shape[0] // view.shape[1]),
+                              interpolation=cv2.INTER_AREA)
+        jpeg = cv2.imencode(".jpg", view, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
         with st.lock:
             st.frame, st.cubes, st.tape = frame, cubes, tape
-            st.jpeg = cv2.imencode(".jpg", view, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
+            st.jpeg = jpeg
             known = [(c.corners, st.name_of(c.id)) for c in cubes]
             if st.auto and known and time.time() - st.last_auto > 1.0:
                 st.last_auto = time.time()
@@ -219,6 +225,8 @@ def main():
     ap.add_argument("--camera", default="srv", help="srv (servidor da câmera) ou índice do dispositivo")
     ap.add_argument("--calib", default="camera_calib_gopro.yaml")
     ap.add_argument("--tag-size", type=float, default=0.032, help="lado do quadrado preto (m)")
+    ap.add_argument("--robot-config", default="robot_config.yaml",
+                    help="pose da câmera no robô; vazio = sem coordenadas do robô")
     ap.add_argument("--port", type=int, default=5000)
     ap.add_argument("--width", type=int, default=1920)
     ap.add_argument("--height", type=int, default=1080)
@@ -232,7 +240,7 @@ def main():
     cap.release()
     K = scale_calibration(K, calib_size, real)
     print(f"Câmera {args.camera}: {real[0]}x{real[1]}")
-    st = State()
+    st = State(args.robot_config)
     open_cap = lambda: open_camera(args.camera, args.width, args.height)
     tape = TapeDetector(K, dist, st.T_base_cam, floor_z=args.floor_z)
     threading.Thread(target=capture_loop,

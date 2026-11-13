@@ -3,7 +3,7 @@
   <name>cube_vision</name>
   <version>0.1.0</version>
   <description>Detecta os cubos com AprilTag 36h11 e publica ID e pose 3D.</description>
-  <maintainer email="niviton.edu@gmail.com">niviton</maintainer>
+  <maintainer email="niviton@users.noreply.github.com">niviton</maintainer>
   <license>MIT</license>
 
   <exec_depend>rclpy</exec_depend>

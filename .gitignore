@@ -1,6 +1,10 @@
 __pycache__/
+*.pyc
 .venv/
+*.jpeg
+*.jpg
 *.png
 datasets/
 models/
 cubes_registry.yaml
+validation.csv
